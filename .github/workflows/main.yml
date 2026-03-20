@@ -1,32 +1,48 @@
-name: Deploy to Docker Hub
+name: CI - Spring Boot Docker
 
-# Kích hoạt quy trình khi có code mới đẩy lên nhánh main
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  build_and_push:
-    # Mượn máy ảo Ubuntu của GitHub để chạy
+  build:
     runs-on: ubuntu-latest
 
     steps:
-      # Action 1: Robot tự động lấy code từ Github vào máy ảo
-      - name: Bước 1 - Checkout mã nguồn
-        uses: actions/checkout@v6.0.2
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      # Action 2: Tự động đăng nhập Docker Hub bằng 2 biến Secrets bạn vừa tạo
-      - name: Bước 2 - Đăng nhập Docker Hub
-        uses: docker/login-action@v4.0.0
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Maven
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-m2
+
+      - name: Build project
+        run: mvn clean package -DskipTests
+        working-directory: demo
+
+      - name: Login Docker Hub
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}}}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # Action 3: Đọc Dockerfile, đóng gói ứng dụng và đẩy lên Docker Hub
-      - name: Bước 3 - Build và Push Image
-        uses: docker/build-push-action@v7.0.0
+      - name: Build & Push Docker Image
+        uses: docker/build-push-action@v5
         with:
-          context: .
+          context: ./demo
+          file: ./demo/Dockerfile
           push: true
-          # Đặt tên cho Image. Thay 'demo-app' bằng tên bạn muốn.
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/demo-app:latest
+          tags: ${{ secrets.DOCKER_USERNAME }}/spring-app:latest
